@@ -1,5 +1,15 @@
-#include <ESP8266WiFi.h>
-#include <PubSubClient.h>
+/************************************************************
+ * ESP8266 / ESP32 MQTT-Controlled Relay & IR Sensor System *
+ * 
+ * Description:
+ * This code connects an ESP8266 or ESP32 to Wi-Fi and MQTT,
+ * subscribes to a topic to control a relay (or LED), and
+ * publishes IR sensor status periodically.
+ * 
+ * To use with ESP32:
+ * - Change `#include <ESP8266WiFi.h>` to `#include <WiFi.h>`
+ * - Replace GPIO names (D5/D6) with actual GPIO numbers (e.g., 14, 12)
+ ************************************************************/
 
 // ==========================
 // Wi-Fi Configuration
@@ -10,7 +20,7 @@
 // ==========================
 // MQTT Configuration
 // ==========================
-const char* broker = "10.252.0.156";       // Raspberry Pi IP
+const char* broker = "10.252.0.156";       // MQTT Broker IP (e.g., Raspberry Pi)
 const int port = 1883;
 const char* topicSub = "/sectorb5/ABDO/led";      // Topic to receive control commands
 const char* topicPub = "/sectorb5/ABDO/irsensor"; // Topic to publish IR sensor status
@@ -18,8 +28,16 @@ const char* topicPub = "/sectorb5/ABDO/irsensor"; // Topic to publish IR sensor 
 // ==========================
 // Hardware Pin Definitions
 // ==========================
-#define RELAY_PIN D6         // GPIO for LED (or relay if used)
-#define IR_SENSOR_PIN D5     // GPIO connected to IR sensor output
+// NOTE: When using a Relay instead of LED, ensure relay module is active HIGH or LOW accordingly.
+#define RELAY_PIN D6         // Pin connected to relay (or LED for testing)
+#define IR_SENSOR_PIN D5     // Pin connected to IR sensor output
+
+// ==========================
+// Libraries
+// ==========================
+// For ESP32: Replace with <WiFi.h>
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h>
 
 // ==========================
 // Global Variables
@@ -32,7 +50,7 @@ char Array_Payload[10] = {};  // Buffer to hold incoming MQTT payloads
 // MQTT Callback Function
 // ==========================
 void callback(char* topic, byte* payload, unsigned int length) {
-  // Copy payload to buffer and terminate with null character
+  // Copy payload to buffer and null-terminate
   for (unsigned int i = 0; i < length; i++) {
     Array_Payload[i] = (char)payload[i];
   }
@@ -43,13 +61,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Payload: ");
   Serial.println(Array_Payload);
 
-  // Compare received message and toggle output pin
+  // Compare received message and toggle relay
   if (strcmp(Array_Payload, "On") == 0) {
-    digitalWrite(RELAY_PIN, HIGH);
-    Serial.println("LED turned ON");
+    digitalWrite(RELAY_PIN, HIGH); // For active HIGH relay
+    Serial.println("Relay turned ON");
   } else if (strcmp(Array_Payload, "Off") == 0) {
-    digitalWrite(RELAY_PIN, LOW);
-    Serial.println("LED turned OFF");
+    digitalWrite(RELAY_PIN, LOW);  // For active HIGH relay
+    Serial.println("Relay turned OFF");
   }
 }
 
@@ -62,9 +80,9 @@ void setup() {
   // Configure GPIO modes
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(IR_SENSOR_PIN, INPUT);
-  digitalWrite(RELAY_PIN, LOW); // Ensure output is initially off
+  digitalWrite(RELAY_PIN, LOW); // Ensure relay starts OFF
 
-  // Connect to Wi-Fi network
+  // Wi-Fi Connection
   Serial.print("Connecting to WiFi");
   WiFi.begin(ssid, pass);
 
@@ -83,7 +101,7 @@ void setup() {
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
 
-  // Configure MQTT server and callback
+  // Configure MQTT
   client.setServer(broker, port);
   client.setCallback(callback);
 
@@ -110,7 +128,22 @@ unsigned long lastSent = 0;
 void loop() {
   client.loop();  // Keep MQTT connection alive
 
-  // Periodically publish IR sensor state
+  // Reconnect if connection drops (good practice)
+  if (!client.connected()) {
+    while (!client.connected()) {
+      Serial.println("Reconnecting to MQTT broker...");
+      if (client.connect("ESPClient")) {
+        Serial.println("✅ Reconnected!");
+        client.subscribe(topicSub);
+      } else {
+        Serial.print("❌ Failed, rc=");
+        Serial.print(client.state());
+        delay(2000);
+      }
+    }
+  }
+
+  // Periodically publish IR sensor status
   if (millis() - lastSent > 1000) {
     lastSent = millis();
 
@@ -124,4 +157,6 @@ void loop() {
       Serial.println("❌ Failed to publish IR status");
     }
   }
+
+  delay(10); // Slight delay to reduce CPU usage
 }
