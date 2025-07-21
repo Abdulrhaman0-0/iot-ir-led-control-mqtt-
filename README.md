@@ -3,6 +3,10 @@
 This IoT project uses an **ESP8266** (or **ESP32**) microcontroller to monitor an **IR obstacle sensor** and control a **relay or LED** remotely via **MQTT protocol**. Built as part of the IoT workshop led by **Eng. Omar Barakat**.
 
 ---
+**linkedin post**
+
+https://www.linkedin.com/posts/abdulrahman-ahmed-a90418249_iot-mqtt-esp8266-activity-7352065663634501632-u8s8
+---
 
 ## 📌 Features
 
